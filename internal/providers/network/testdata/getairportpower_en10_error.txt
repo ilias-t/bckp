@@ -1,0 +1,2 @@
+en10 is not a Wi-Fi interface.
+** Error: Error obtaining wireless information.

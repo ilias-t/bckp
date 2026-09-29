@@ -1,0 +1,35 @@
++-o IOPMrootDomain  <class IOPMrootDomain, id 0x1000002d5, registered, matched, active, busy 0 (381 ms), retain 211>
+  | {
+  |   "Last Sleep Options" = {"Sleep Reason"="Notification Wake Back to Sleep"}
+  |   "Wake Type" = "UserActivity Assertion"
+  |   "IOPMUserTriggeredFullWake" = Yes
+  |   "Supported Features" = {"WakeByCalendarDate"=32899079,"MaintenanceWakeCalendarDate"=32964615,"SleepServiceWakeCalendarKey"=33030151,"PowerByCalendarDate"=33095687,"PowerRelativeToShutdown"=33226759,"WakeOnMagicPacket"=33423367,"WakeRelativeToSleep"=33161223,"AdaptiveDimming"=33292295,"Hibernation"=32833543}
+  |   "IOPreviewBuffer" = ({"address"=0,"length"=30965760})
+  |   "DriverPMAssertionsDetailed" = ({"Assertions"=1,"ModifiedTime"=7690700982908491662,"Owner"="com.apple.pci.hostBridge.preventSleep","RegistryEntryID"=0,"CreatedTime"=0,"Level"=0,"ID"=500},{"Assertions"=1,"ModifiedTime"=0,"Owner"="AppleHPMARMSPMI","RegistryEntryID"=4294968453,"CreatedTime"=0,"Level"=0,"ID"=501},{"Assertions"=1,"ModifiedTime"=0,"Owner"="AppleHPMARMSPMI","RegistryEntryID"=4294968457,"CreatedTime"=0,"Level"=0,"ID"=502},{"Assertions"=1,"ModifiedTime"=0,"Owner"="AppleHPMARMSPMI","RegistryEntryID"=4294968489,"CreatedTime"=0,"Level"=0,"ID"=503},{"Assertions"=1,"ModifiedTime"=7690693372226701860,"Owner"="com.apple.pci.hostBridge.preventSleep","RegistryEntryID"=0,"CreatedTime"=0,"Level"=0,"ID"=504},{"Assertions"=1,"ModifiedTime"=7690693372226645137,"Owner"="com.apple.pci.hostBridge.preventSleep","RegistryEntryID"=0,"CreatedTime"=0,"Level"=0,"ID"=505},{"Assertions"=1,"ModifiedTime"=0,"Owner"="AppleHPMARMSPMI","RegistryEntryID"=4294968590,"CreatedTime"=0,"Level"=0,"ID"=506},{"Assertions"=1,"ModifiedTime"=7690693372226693931,"Owner"="com.apple.pci.hostBridge.preventSleep","RegistryEntryID"=0,"CreatedTime"=0,"Level"=0,"ID"=507},{"Assertions"=32,"ModifiedTime"=7690693350751772512,"Owner"="acio1","RegistryEntryID"=4294968534,"CreatedTime"=7690693350751772443,"Level"=0,"ID"=547},{"Assertions"=1,"ModifiedTime"=0,"Owner"="IOThunderboltControllerType7","RegistryEntryID"=4294969766,"CreatedTime"=7690693350751780976,"Level"=0,"ID"=548},{"Assertions"=32,"ModifiedTime"=7690693350751789197,"Owner"="acio0","RegistryEntryID"=4294968521,"CreatedTime"=7690693350751789145,"Level"=0,"ID"=549},{"Assertions"=1,"ModifiedTime"=0,"Owner"="IOThunderboltControllerType7","RegistryEntryID"=4294969825,"CreatedTime"=7690693350751800939,"Level"=0,"ID"=550},{"Assertions"=32,"ModifiedTime"=7690693350751840039,"Owner"="acio2","RegistryEntryID"=4294968263,"CreatedTime"=7690693350751839984,"Level"=0,"ID"=551},{"Assertions"=1,"ModifiedTime"=0,"Owner"="IOThunderboltControllerType7","RegistryEntryID"=4294969948,"CreatedTime"=7690693350751845927,"Level"=0,"ID"=552},{"Assertions"=256,"ModifiedTime"=7690717080446653696,"Owner"="en0","RegistryEntryID"=4294971923,"CreatedTime"=7690693685759130784,"Level"=255,"ID"=556})
+  |   "IOHibernateState" = <00000000>
+  |   "IOPowerManagement" = {"ChildrenPowerState"=0,"DevicePowerState"=4,"CurrentPowerState"=4,"CapabilityFlags"=2,"MaxPowerState"=4}
+  |   "Standby Enabled" = Yes
+  |   "IOPMSystemSleepType" = 7
+  |   "IOAppPowerStateInterest" = "IOCommand is not serializable"
+  |   "System Capabilities" = 15
+  |   "BootSessionUUID" = "00000000-0000-0000-0000-000000000001"
+  |   "IOUserClientClass" = "RootDomainUserClient"
+  |   "Hibernate Mode" = 3
+  |   "Hibernate File" = "/var/vm/sleepimage"
+  |   "AppleClamshellCausesSleep" = Yes
+  |   "AppleClamshellState" = Yes
+  |   "SleepDisabled" = Yes
+  |   "DestroyFVKeyOnStandby" = No
+  |   "Last Sleep Reason" = "Maintenance Sleep"
+  |   "SystemPowerProfileOverrideDict" = {}
+  |   "DriverPMAssertions" = 256
+  |   "IOPMSystemSleepParameters" = <02000000070000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000>
+  |   "Hibernate File Min" = 2147483648
+  |   "IOPMUserIsActive" = Yes
+  |   "SleepRequestedByPID" = 362
+  |   "IOPriorityPowerStateInterest" = "IOCommand is not serializable"
+  |   "IOGeneralInterest" = "IOCommand is not serializable"
+  |   "Wake Reason" = "smc.sysState.Wake(0x70070000) wifibt SMC.OutboxNotEmpty nub-spmi-a0.0x0B"
+  |   "SleepWakeUUID" = "00000000-0000-0000-0000-000000000002"
+  |   "IOSleepSupported" = Yes
+  | }

@@ -1,0 +1,73 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  # Tests and builds with a read-only token. Nothing here can publish.
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - name: check the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "tag '$TAG' is not a semver tag like v1.2.3 or v1.2.3-rc.1" >&2
+            exit 1
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          # No build cache: a poisoned cache must not reach a release build.
+          cache: false
+      - name: test
+        run: go test ./...
+      # Universal (arm64 + amd64) binaries with cgo, the tarball and
+      # checksums.txt, all in ./dist.
+      - name: build
+        env:
+          TAG: ${{ github.ref_name }}
+        run: make dist VERSION="$TAG"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dist
+          path: |
+            dist/bckp_*_darwin_universal.tar.gz
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  # Attests and publishes what the build job produced. No checkout and no
+  # build: only this job holds the write token.
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dist
+          path: dist
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/bckp_*_darwin_universal.tar.gz
+      - name: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" --title "$TAG" --verify-tag --generate-notes \
+            dist/bckp_*_darwin_universal.tar.gz dist/checksums.txt

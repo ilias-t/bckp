@@ -1,0 +1,15 @@
+backpack  awake  1h23m left (ends 22:23)                                pid 4242
+────────────────────────────────────────────────────────────────────────────────
+Keys
+
+  q          detach: close this view; the session keeps running
+  s, ctrl+c  stop the session (asks to confirm)
+  e          extend by 30 minutes (also cancels a serious-heat sleep)
+  f          run forever (until the max_duration cap)
+  x          abort a pending serious-heat sleep (no time added)
+  ?          toggle this help
+
+A sleep triggered by critical heat cannot be aborted or postponed.
+Reattach later with `bckp attach`.
+
+press any key to close

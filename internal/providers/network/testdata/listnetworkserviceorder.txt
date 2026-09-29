@@ -1,0 +1,22 @@
+An asterisk (*) denotes that a network service is disabled.
+(1) Display Controls
+(Hardware Port: Display Controls, Device: usbmodemXXXX0001)
+
+(2) USB 10/100/1000 LAN
+(Hardware Port: USB 10/100/1000 LAN, Device: en7)
+
+(3) Thunderbolt Ethernet
+(Hardware Port: Thunderbolt Ethernet, Device: en9)
+
+(4) Wi-Fi
+(Hardware Port: Wi-Fi, Device: en0)
+
+(5) Thunderbolt Bridge
+(Hardware Port: Thunderbolt Bridge, Device: bridge0)
+
+(6) iPhone USB
+(Hardware Port: iPhone USB, Device: en10)
+
+(7) Tailscale
+(Hardware Port: io.tailscale.ipn.macos, Device: )
+

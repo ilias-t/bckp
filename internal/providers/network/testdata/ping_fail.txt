@@ -1,0 +1,4 @@
+PING 172.20.10.1 (172.20.10.1): 56 data bytes
+
+--- 172.20.10.1 ping statistics ---
+1 packets transmitted, 0 packets received, 100.0% packet loss

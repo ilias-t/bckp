@@ -1,0 +1,14 @@
+backpack  sleep pending 0:45  forever (cap Tue 08:53)                   pid 4242
+────────────────────────────────────────────────────────────────────────────────
+HEAT     [SERIOUS]  CPU 88.4°C  GPU 71.2°C  fsm SLEEP_PENDING  hot 10m
+         ⏾ sleep in 0:45 — serious heat for 10m (x to abort)
+POWER    AC 87% charging  lid closed  SleepDisabled yes  lease held
+NETWORK  en10  online via hotspot (USB)  gw reachable  iPhone USB  Wi-Fi on
+         hotspot preferred  recoveries 0
+NOTIFY   20:59 p3 Heartbeat — serious, 88°C, AC 87%
+         20:59 p5 (failed) Sleeping in 60s — serious heat for 10m …
+         20:59 p4 Still hot — serious for 10m
+         20:49 p4 Thermal serious — CPU 84°C
+         20:48 p3 Thermal fair — CPU 71°C
+
+Stop the session? [y/N]  this cancels the pending sleep

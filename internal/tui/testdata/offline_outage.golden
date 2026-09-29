@@ -1,0 +1,15 @@
+backpack  awake  1h23m left (ends 22:23)                                pid 4242
+────────────────────────────────────────────────────────────────────────────────
+HEAT     [NOMINAL]  CPU 52.3°C  GPU 41.0°C  fsm NOMINAL
+         cpu ▁▂▃▄▅▆▇█ 50–52°C
+POWER    AC 87% charging  lid closed  SleepDisabled yes  lease held
+NETWORK  en10  OFFLINE 3m12s  gw unreachable  iPhone USB  Wi-Fi off
+         hotspot preferred  recoveries 2 (last 20:59)
+NOTIFY   2 queued in outbox
+         20:57 p4 (queued) Hotspot offline — no default route
+         20:59 p3 Heartbeat — nominal, 52°C, AC 87%
+         20:53 p2 backpack started — 90m, prefer hotspot
+ERRORS   network: probe: dial tcp 1.1.1.1:443: i/o timeout
+         notify: ntfy: no route to host
+
+q detach · s stop · e +30m · f forever · x abort sleep · ? help
