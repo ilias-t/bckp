@@ -126,6 +126,9 @@ func (e *env) printStatus(s contracts.Snapshot, k kernelState) {
 		if r.GPUC != nil {
 			parts = append(parts, fmt.Sprintf("GPU %.0f°C", *r.GPUC))
 		}
+		if r.BatteryC != nil {
+			parts = append(parts, fmt.Sprintf("battery %.0f°C", *r.BatteryC))
+		}
 		if len(parts) > 0 {
 			th += " (" + strings.Join(parts, ", ") + ")"
 		}

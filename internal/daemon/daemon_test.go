@@ -470,6 +470,37 @@ func TestBackstopThermalErrorDoesNotResetCount(t *testing.T) {
 	}
 }
 
+// Battery °C at or above BackstopBatteryTempC twice in a row trips the
+// backstop even while the thermal state stays nominal. A missing battery
+// reading neither trips nor resets the count.
+func TestBackstopBatteryTempTwice(t *testing.T) {
+	h := newHarness(t)
+	h.thermal = fakes.NewThermal(h.clock)
+	nom := contracts.ThermalNominal
+	for _, b := range []*float64{fptr(49.9), fptr(50.5), nil, fptr(51.2)} {
+		h.thermal.Push(contracts.ThermalReading{State: nom, BatteryC: b})
+	}
+	h.power = fakes.NewPower(h.clock, contracts.PowerReading{OnAC: true, Percent: 50})
+	h.s.d.Thermal, h.s.d.Power = h.thermal, h.power
+	h.start()
+	c := h.dial()
+	c.acquire(300)
+	h.poll() // 49.9: below
+	h.poll() // 50.5: x1
+	h.poll() // unreadable: skipped
+	h.waitTimers(2)
+	if h.k.Sleeps() != 0 {
+		t.Fatal("tripped before two hot battery readings")
+	}
+	h.poll() // 51.2: x2
+	h.eventually("sleepnow", func() bool { return h.k.Sleeps() == 1 })
+	if st := h.status(); st.Backstop != contracts.BackstopTrippedPrefix+"battery 51°C x2" {
+		t.Fatalf("backstop = %q", st.Backstop)
+	}
+}
+
+func fptr(v float64) *float64 { return &v }
+
 func TestBackstopThermalErrorsDoNotTrip(t *testing.T) {
 	h := newHarness(t)
 	h.thermal = fakes.NewThermal(h.clock)

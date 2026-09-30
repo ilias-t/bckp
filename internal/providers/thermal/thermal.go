@@ -1,6 +1,6 @@
 // Package thermal combines the kernel thermal state (a cgo shim over
-// NSProcessInfo.thermalState) with advisory CPU/GPU °C from macmon into a
-// contracts.ThermalSource.
+// NSProcessInfo.thermalState) and the battery's fuel-gauge °C (the same
+// shim) with advisory CPU/GPU °C from macmon into a contracts.ThermalSource.
 package thermal
 
 import (
@@ -51,15 +51,16 @@ type Source struct {
 	opts Options
 
 	// Test seams.
-	state func() (contracts.ThermalState, error)
-	now   func() time.Time
+	state   func() (contracts.ThermalState, error)
+	battery func() *float64
+	now     func() time.Time
 }
 
 var _ contracts.ThermalSource = (*Source)(nil)
 
 // New returns a ThermalSource: State() for the state, macmon for °C.
 func New(exec contracts.Exec, opts Options) contracts.ThermalSource {
-	return &Source{exec: exec, opts: opts, state: State, now: time.Now}
+	return &Source{exec: exec, opts: opts, state: State, battery: BatteryC, now: time.Now}
 }
 
 // Read returns the current reading. It errors only when the state could
@@ -72,6 +73,7 @@ func (s *Source) Read(ctx context.Context) (contracts.ThermalReading, error) {
 		r.State = contracts.ThermalUnknown
 		return r, err
 	}
+	r.BatteryC = s.battery()
 	if s.opts.DisableMacmon {
 		return r, nil
 	}
@@ -79,4 +81,21 @@ func (s *Source) Read(ctx context.Context) (contracts.ThermalReading, error) {
 		r.CPUC, r.GPUC = cpu, gpu
 	}
 	return r, nil
+}
+
+// Plausible battery cell temperatures in °C. Other sensors on the same
+// HID page read nonsense such as -9202°C; a gauge outside this range is
+// treated as unreadable.
+const minBatteryC, maxBatteryC = 1.0, 99.0
+
+// hottestPlausible returns the hottest reading within the plausible
+// range, or nil when there is none.
+func hottestPlausible(temps []float64) *float64 {
+	var best *float64
+	for _, t := range temps {
+		if t >= minBatteryC && t <= maxBatteryC && (best == nil || t > *best) {
+			best = &t
+		}
+	}
+	return best
 }

@@ -1,6 +1,6 @@
 [1mbackpack[0m  [38;5;34mawake[0m  1h23m left (ends 22:23)                                [2mpid 4242[0m
 [2m────────────────────────────────────────────────────────────────────────────────[0m
-HEAT     [1;38;5;16;48;5;34m NOMINAL [0m  CPU 52.3°C  GPU 41.0°C  fsm NOMINAL
+HEAT     [1;38;5;16;48;5;34m NOMINAL [0m  CPU 52.3°C  GPU 41.0°C  BATT 33.6°C  fsm NOMINAL
          cpu ▁▁▂▂▂▃▃▃▃▄▄▄▅▅▅▆▆▆▆▇▇▇██ 48–56°C
 POWER    AC 87% charging  lid closed  [38;5;34mSleepDisabled yes[0m  [38;5;34mlease held[0m
 NETWORK  en10  [38;5;34monline via hotspot (USB)[0m  gw reachable  iPhone USB  Wi-Fi on

@@ -1,6 +1,6 @@
 backpack  awake  1h23m left (ends 22:23)                                pid 4242
 ────────────────────────────────────────────────────────────────────────────────
-HEAT     [NOMINAL]  fsm NOMINAL
+HEAT     [NOMINAL]  BATT 33.6°C  fsm NOMINAL
 POWER    no reading yet  lease NOT held
          ⚠ sleep lease not held — closing the lid may sleep the Mac
 NETWORK  no probe yet  hotspot preferred  recoveries 0

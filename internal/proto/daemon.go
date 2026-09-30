@@ -57,8 +57,9 @@ import (
 //     connection so the client observes the loss.
 //   - Backstop: while a lease is active the daemon polls every
 //     BackstopPollInterval. BackstopCriticalPolls consecutive critical
-//     thermal readings, or internal battery below BackstopBatteryPercent
-//     while not on AC, ends the lease (disablesleep 0), closes the lease
+//     thermal readings, BackstopBatteryTempPolls consecutive battery
+//     readings at or above BackstopBatteryTempC, or internal battery below
+//     BackstopBatteryPercent while not on AC, ends the lease (disablesleep 0), closes the lease
 //     connection, and runs `pmset sleepnow`. Not configurable.
 //   - On start and on SIGTERM the daemon runs `pmset -a disablesleep 0`.
 
@@ -98,6 +99,11 @@ const (
 	BackstopPollInterval   = 10 * time.Second
 	BackstopCriticalPolls  = 2
 	BackstopBatteryPercent = 10
+	// BackstopBatteryTempC and BackstopBatteryTempPolls: battery cell °C
+	// the daemon never lets a session run past, whatever the engine's
+	// battery_critical_c.
+	BackstopBatteryTempC     = 50.0
+	BackstopBatteryTempPolls = 2
 )
 
 // DaemonRequest is one request line. Only the fields listed per op are

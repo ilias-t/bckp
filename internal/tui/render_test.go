@@ -35,7 +35,7 @@ func nominalSnap() contracts.Snapshot {
 		Thermal: contracts.ThermalStatus{
 			FSM: contracts.FSMNominal,
 			Reading: &contracts.ThermalReading{
-				State: contracts.ThermalNominal, CPUC: fp(52.3), GPUC: fp(41.0), At: base,
+				State: contracts.ThermalNominal, CPUC: fp(52.3), GPUC: fp(41.0), BatteryC: fp(33.6), At: base,
 			},
 		},
 		Power: &contracts.PowerReading{
@@ -64,7 +64,7 @@ func seriousSnap() contracts.Snapshot {
 	s.Session.RemainingS = int64((12*time.Hour - 7*time.Minute) / time.Second)
 	s.Thermal = contracts.ThermalStatus{
 		FSM:      contracts.FSMSleepPending,
-		Reading:  &contracts.ThermalReading{State: contracts.ThermalSerious, CPUC: fp(88.4), GPUC: fp(71.2), At: base},
+		Reading:  &contracts.ThermalReading{State: contracts.ThermalSerious, CPUC: fp(88.4), GPUC: fp(71.2), BatteryC: fp(44.1), At: base},
 		HotSince: base.Add(-10*time.Minute - 5*time.Second),
 	}
 	s.SleepPending = &contracts.SleepPending{

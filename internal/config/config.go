@@ -34,6 +34,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/ilias-t/bckp/internal/paths"
+	"github.com/ilias-t/bckp/internal/proto"
 )
 
 // EnvConfigPath names the environment variable that overrides the config
@@ -133,6 +134,17 @@ type Thermal struct {
 	// CPUSleepC, when set, triggers an abortable sleep (SeriousGrace) once
 	// CPU °C reaches it. nil disables the °C trigger (default).
 	CPUSleepC *float64 `toml:"cpu_sleep_c"`
+	// BatteryWarnC, BatterySleepC and BatteryCriticalC are battery cell
+	// °C thresholds, each reached for 2 polls in a row: a warning, an
+	// abortable sleep (SeriousGrace), and a non-abortable sleep
+	// (CriticalGrace). They guard the case the thermal state misses: a
+	// closed bag heats the battery while the chip stays cool enough that
+	// macOS reports nominal. Apple warns that ambient heat above 35°C
+	// permanently damages battery capacity; the cell reads roughly 10°C
+	// above ambient, so 45°C in the cell is about a 35°C room.
+	BatteryWarnC     float64 `toml:"battery_warn_c"`
+	BatterySleepC    float64 `toml:"battery_sleep_c"`
+	BatteryCriticalC float64 `toml:"battery_critical_c"`
 }
 
 // Power configures the power rails.
@@ -220,13 +232,16 @@ func Default() Config {
 			FairPolls:         2,
 			FairCooldown:      30 * time.Minute,
 			HotRenotify:       10 * time.Minute,
-			SeriousSleepAfter: 10 * time.Minute,
-			SeriousGrace:      60 * time.Second,
+			SeriousSleepAfter: 3 * time.Minute,
+			SeriousGrace:      30 * time.Second,
 			CriticalPolls:     2,
 			CriticalGrace:     15 * time.Second,
-			CooledPolls:       2,
+			CooledPolls:       8,
 			NominalPolls:      3,
 			CPUSleepC:         nil,
+			BatteryWarnC:      40,
+			BatterySleepC:     45,
+			BatteryCriticalC:  50,
 		},
 		Power: Power{
 			BatteryFloor:    25,
@@ -385,6 +400,16 @@ func (c Config) Validate() error {
 		check(*t.CPUSleepC >= 40 && *t.CPUSleepC <= 120,
 			"thermal.cpu_sleep_c must be 40..120 (got %g)", *t.CPUSleepC)
 	}
+	for name, v := range map[string]float64{
+		"battery_warn_c": t.BatteryWarnC, "battery_sleep_c": t.BatterySleepC, "battery_critical_c": t.BatteryCriticalC,
+	} {
+		// The root helper sleeps the Mac at proto.BackstopBatteryTempC
+		// whatever the config says, so higher values would never apply.
+		check(v >= 30 && v <= proto.BackstopBatteryTempC, "thermal.%s must be 30..%g (got %g)", name, proto.BackstopBatteryTempC, v)
+	}
+	check(t.BatteryWarnC < t.BatterySleepC && t.BatterySleepC < t.BatteryCriticalC,
+		"thermal battery thresholds must rise: battery_warn_c < battery_sleep_c < battery_critical_c (got %g, %g, %g)",
+		t.BatteryWarnC, t.BatterySleepC, t.BatteryCriticalC)
 
 	p := c.Power
 	check(p.BatteryFloor >= 0 && p.BatteryFloor <= 99, "power.battery_floor must be 0..99 (got %d)", p.BatteryFloor)
@@ -501,6 +526,12 @@ func setFromString(f reflect.Value, s string) error {
 			return err
 		}
 		f.SetInt(int64(n))
+	case f.Kind() == reflect.Float64:
+		x, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return err
+		}
+		f.SetFloat(x)
 	case f.Kind() == reflect.Pointer && f.Type().Elem().Kind() == reflect.Float64:
 		if s == "" {
 			f.Set(reflect.Zero(f.Type()))

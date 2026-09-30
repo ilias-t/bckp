@@ -12,3 +12,6 @@ import (
 func State() (contracts.ThermalState, error) {
 	return contracts.ThermalUnknown, errors.New("thermal: State requires darwin with cgo")
 }
+
+// BatteryC is unavailable without darwin and cgo.
+func BatteryC() *float64 { return nil }

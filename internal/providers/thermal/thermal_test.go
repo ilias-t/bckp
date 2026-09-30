@@ -25,6 +25,43 @@ func TestStateOnThisMachine(t *testing.T) {
 	t.Logf("thermal state: %v", s)
 }
 
+// TestBatteryOnThisMachine calls the real cgo shim. Machines without a
+// battery (CI VMs, desktops) read nil.
+func TestBatteryOnThisMachine(t *testing.T) {
+	c := BatteryC()
+	if c == nil {
+		t.Skip("no battery temperature on this machine")
+	}
+	if *c < 1 || *c > 99 {
+		t.Fatalf("BatteryC = %v, want a plausible cell temperature", *c)
+	}
+	t.Logf("battery: %.1f°C", *c)
+}
+
+func TestHottestPlausible(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []float64
+		want float64 // 0: nil
+	}{
+		{"none", nil, 0},
+		{"hottest of several gauges", []float64{33.0, 34.8, 33.7}, 34.8},
+		{"implausible values dropped", []float64{-9202.8, 0, 33.5, 150}, 33.5},
+		{"only implausible", []float64{-9202.8, 0, 120}, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := hottestPlausible(tc.in)
+			switch {
+			case tc.want == 0 && got != nil:
+				t.Errorf("got %v, want nil", *got)
+			case tc.want != 0 && (got == nil || *got != tc.want):
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestFromNS(t *testing.T) {
 	want := map[int]contracts.ThermalState{
 		0: contracts.ThermalNominal,
@@ -53,6 +90,7 @@ var at = time.Date(2026, 9, 28, 20, 0, 0, 0, time.UTC)
 func newTest(ex contracts.Exec, opts Options, st contracts.ThermalState, stErr error) *Source {
 	s := New(ex, opts).(*Source)
 	s.state = func() (contracts.ThermalState, error) { return st, stErr }
+	s.battery = func() *float64 { b := 36.5; return &b }
 	s.now = func() time.Time { return at }
 	return s
 }
@@ -107,6 +145,10 @@ func TestReadDisableMacmon(t *testing.T) {
 	r, err := newTest(ex, Options{DisableMacmon: true}, contracts.ThermalFair, nil).Read(context.Background())
 	if err != nil || r.State != contracts.ThermalFair || r.CPUC != nil {
 		t.Fatalf("reading = %+v, %v", r, err)
+	}
+	// Battery °C is in-process, so the root daemon gets it too.
+	if r.BatteryC == nil || *r.BatteryC != 36.5 {
+		t.Errorf("BatteryC = %v, want 36.5", r.BatteryC)
 	}
 	if n := len(ex.Calls()); n != 0 {
 		t.Errorf("ran %d commands with macmon disabled", n)

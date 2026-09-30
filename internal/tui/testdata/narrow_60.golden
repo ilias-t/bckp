@@ -1,6 +1,6 @@
 backpack  sleep pending 0:45  forever (cap Tue 08:53)
 ────────────────────────────────────────────────────────────
-HEAT     [SERIOUS]  CPU 88.4°C  GPU 71.2°C
+HEAT     [SERIOUS]  CPU 88.4°C  GPU 71.2°C  BATT 44.1°C
          fsm SLEEP_PENDING  hot 10m
          cpu ▁▁▁▂▂▂▂▂▂▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▅▆▆▆▆▆▇▇▇▇▇▇███ 61–88°C
          ⏾ sleep in 0:45 — serious heat for 10m (x to abort)

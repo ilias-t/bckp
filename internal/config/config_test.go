@@ -28,13 +28,16 @@ func TestDefaultsAreValid(t *testing.T) {
 		{"fair_polls", cfg.Thermal.FairPolls, 2},
 		{"fair_cooldown", cfg.Thermal.FairCooldown, 30 * time.Minute},
 		{"hot_renotify", cfg.Thermal.HotRenotify, 10 * time.Minute},
-		{"serious_sleep_after", cfg.Thermal.SeriousSleepAfter, 10 * time.Minute},
-		{"serious_grace", cfg.Thermal.SeriousGrace, 60 * time.Second},
+		{"serious_sleep_after", cfg.Thermal.SeriousSleepAfter, 3 * time.Minute},
+		{"serious_grace", cfg.Thermal.SeriousGrace, 30 * time.Second},
 		{"critical_polls", cfg.Thermal.CriticalPolls, 2},
 		{"critical_grace", cfg.Thermal.CriticalGrace, 15 * time.Second},
-		{"cooled_polls", cfg.Thermal.CooledPolls, 2},
+		{"cooled_polls", cfg.Thermal.CooledPolls, 8},
 		{"nominal_polls", cfg.Thermal.NominalPolls, 3},
 		{"cpu_sleep_c", cfg.Thermal.CPUSleepC == nil, true},
+		{"battery_warn_c", cfg.Thermal.BatteryWarnC, 40.0},
+		{"battery_sleep_c", cfg.Thermal.BatterySleepC, 45.0},
+		{"battery_critical_c", cfg.Thermal.BatteryCriticalC, 50.0},
 		{"battery_floor", cfg.Power.BatteryFloor, 25},
 		{"notify_on_battery", cfg.Power.NotifyOnBattery, true},
 		{"watchdog", cfg.Network.Watchdog, true},
@@ -148,6 +151,7 @@ func TestEnvOverrides(t *testing.T) {
 		"BACKPACK_NETWORK_PREFER_HOTSPOT=on",
 		"BACKPACK_POWER_BATTERY_FLOOR=30",             // int
 		"BACKPACK_THERMAL_CPU_SLEEP_C=",               // optional float: unset
+		"BACKPACK_THERMAL_BATTERY_SLEEP_C=44.5",       // float
 		"BACKPACK_NETWORK_RECOVERY_MIN_INTERVAL=240s", // multi-underscore key
 	}
 	cfg, err := Load(LoadOptions{Path: p, Environ: env})
@@ -168,6 +172,9 @@ func TestEnvOverrides(t *testing.T) {
 	}
 	if cfg.Thermal.CPUSleepC != nil {
 		t.Errorf("cpu_sleep_c = %v, want nil", *cfg.Thermal.CPUSleepC)
+	}
+	if cfg.Thermal.BatterySleepC != 44.5 {
+		t.Errorf("battery_sleep_c = %v", cfg.Thermal.BatterySleepC)
 	}
 	if cfg.Network.RecoveryMinInterval != 240*time.Second {
 		t.Errorf("recovery_min_interval = %s", cfg.Network.RecoveryMinInterval)
@@ -200,23 +207,27 @@ func TestEnvErrors(t *testing.T) {
 func TestValidate(t *testing.T) {
 	f := func(v float64) *float64 { return &v }
 	cases := map[string]func(*Config){
-		"poll too small":        func(c *Config) { c.Session.Poll = 100 * time.Millisecond },
-		"warning >= cap":        func(c *Config) { c.Session.MaxDurationWarning = c.Session.MaxDuration },
-		"zero polls":            func(c *Config) { c.Thermal.CriticalPolls = 0 },
-		"zero grace":            func(c *Config) { c.Thermal.SeriousGrace = 0 },
-		"cpu_sleep_c too low":   func(c *Config) { c.Thermal.CPUSleepC = f(20) },
-		"battery floor 100":     func(c *Config) { c.Power.BatteryFloor = 100 },
-		"empty service":         func(c *Config) { c.Network.Service = " " },
-		"bad ntfy server":       func(c *Config) { c.Notify.NtfyServer = "ntfy.sh" },
-		"bad topic":             func(c *Config) { c.Notify.NtfyTopic = "has space" },
-		"bad heartbeat prio":    func(c *Config) { c.Notify.HeartbeatPriority = 6 },
-		"negative heartbeat":    func(c *Config) { c.Notify.Heartbeat = -time.Second },
-		"zero recovery_after":   func(c *Config) { c.Network.RecoveryAfter = 0 },
-		"zero recovery_min_int": func(c *Config) { c.Network.RecoveryMinInterval = 0 },
-		"negative nudge after":  func(c *Config) { c.Network.WiFiNudgeAfter = -time.Second },
-		"bad push":              func(c *Config) { c.Notify.Push = "some" },
-		"negative outage_min":   func(c *Config) { c.Notify.OutageMin = -time.Second },
-		"zero nudge every":      func(c *Config) { c.Network.WiFiNudgeEvery = 0 },
+		"poll too small":         func(c *Config) { c.Session.Poll = 100 * time.Millisecond },
+		"warning >= cap":         func(c *Config) { c.Session.MaxDurationWarning = c.Session.MaxDuration },
+		"zero polls":             func(c *Config) { c.Thermal.CriticalPolls = 0 },
+		"zero grace":             func(c *Config) { c.Thermal.SeriousGrace = 0 },
+		"cpu_sleep_c too low":    func(c *Config) { c.Thermal.CPUSleepC = f(20) },
+		"battery_warn_c too low": func(c *Config) { c.Thermal.BatteryWarnC = 25 },
+		"battery_critical_c above the helper's 50": func(c *Config) { c.Thermal.BatteryCriticalC = 51 },
+		"battery warn >= sleep":                    func(c *Config) { c.Thermal.BatteryWarnC = 45 },
+		"battery sleep >= critical":                func(c *Config) { c.Thermal.BatterySleepC = 50 },
+		"battery floor 100":                        func(c *Config) { c.Power.BatteryFloor = 100 },
+		"empty service":                            func(c *Config) { c.Network.Service = " " },
+		"bad ntfy server":                          func(c *Config) { c.Notify.NtfyServer = "ntfy.sh" },
+		"bad topic":                                func(c *Config) { c.Notify.NtfyTopic = "has space" },
+		"bad heartbeat prio":                       func(c *Config) { c.Notify.HeartbeatPriority = 6 },
+		"negative heartbeat":                       func(c *Config) { c.Notify.Heartbeat = -time.Second },
+		"zero recovery_after":                      func(c *Config) { c.Network.RecoveryAfter = 0 },
+		"zero recovery_min_int":                    func(c *Config) { c.Network.RecoveryMinInterval = 0 },
+		"negative nudge after":                     func(c *Config) { c.Network.WiFiNudgeAfter = -time.Second },
+		"bad push":                                 func(c *Config) { c.Notify.Push = "some" },
+		"negative outage_min":                      func(c *Config) { c.Notify.OutageMin = -time.Second },
+		"zero nudge every":                         func(c *Config) { c.Network.WiFiNudgeEvery = 0 },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {

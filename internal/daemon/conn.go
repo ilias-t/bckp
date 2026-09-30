@@ -234,13 +234,13 @@ func parseAllowlist(s string) (map[uint32]bool, error) {
 
 // backstopState carries consecutive-reading state across polls.
 type backstopState struct {
-	critical          int
+	critical, battHot int
 	thermErr, powrErr bool // log read errors on transitions only
 }
 
 // backstopCheck reads both sources once and returns a trip reason, or "".
 // A thermal read error (or unknown state) is not critical and does not
-// reset the count.
+// reset the count; neither does a missing battery °C.
 func (s *Server) backstopCheck(bs *backstopState) string {
 	ctx, cancel := context.WithTimeout(context.Background(), pollTimeout)
 	defer cancel()
@@ -256,8 +256,18 @@ func (s *Server) backstopCheck(bs *backstopState) string {
 		} else {
 			bs.critical = 0
 		}
-		if bs.critical >= proto.BackstopCriticalPolls {
+		if b := th.BatteryC; b != nil {
+			if *b >= proto.BackstopBatteryTempC {
+				bs.battHot++
+			} else {
+				bs.battHot = 0
+			}
+		}
+		switch {
+		case bs.critical >= proto.BackstopCriticalPolls:
 			reason = fmt.Sprintf("thermal critical x%d", bs.critical)
+		case bs.battHot >= proto.BackstopBatteryTempPolls:
+			reason = fmt.Sprintf("battery %.0f°C x%d", *th.BatteryC, bs.battHot)
 		}
 	}
 	pw, err := s.d.Power.Read(ctx)

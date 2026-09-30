@@ -29,11 +29,23 @@ import (
 //	any            -> SLEEP_PENDING  optional cpu_sleep_c: CPU °C at or above
 //	                                 the threshold for cpuSleepPolls polls
 //	                                 (abortable, SeriousGrace)
+//	any            -> SLEEP_PENDING  battery °C at or above battery_sleep_c
+//	                                 for batteryPolls polls (abortable,
+//	                                 SeriousGrace), or at or above
+//	                                 battery_critical_c (not abortable,
+//	                                 CriticalGrace)
 //	SLEEP_PENDING  -> SLEEPING       when the grace period ends (Expire)
 //
-// A serious-triggered pending sleep that sees CriticalPolls critical polls
-// is upgraded to a critical one (not abortable; the deadline moves earlier
-// if CriticalGrace is shorter than what remains).
+// An abortable pending sleep that sees CriticalPolls critical polls, or
+// battery_critical_c for batteryPolls polls, is upgraded to a critical one
+// (not abortable; the deadline moves earlier if CriticalGrace is shorter
+// than what remains).
+//
+// Battery °C runs beside the states above because the thermal state can
+// stay nominal while a closed bag heats the battery: the chip stays cool
+// enough not to throttle. battery_warn_c for batteryPolls polls notifies
+// once, re-armed after CooledPolls polls below it. An unreadable battery
+// °C is notified once after thermalFailNotifyPolls polls.
 //
 // A failed reading (read error or ThermalUnknown) changes no counters and
 // does not advance the hot timer: the interval that ends at the first good
@@ -48,6 +60,9 @@ const (
 	// cpuSleepPolls consecutive polls at or above cpu_sleep_c trigger an
 	// abortable sleep. Two polls filter out single-sample spikes.
 	cpuSleepPolls = 2
+	// batteryPolls consecutive polls at or above a battery threshold
+	// trigger its warning or sleep, filtering single-sample spikes.
+	batteryPolls = 2
 )
 
 // thermalRules is the thermal state machine's configuration.
@@ -83,6 +98,15 @@ type ThermalFSM struct {
 
 	FairCount, CritCount, CalmCount, NominalCount, CPUHotCount int
 
+	// Battery °C counters: polls at or above battery_warn_c,
+	// battery_sleep_c and battery_critical_c, below battery_warn_c, and
+	// without a battery reading.
+	BattWarmCount, BattHotCount, BattCritCount, BattCalmCount, BattMissCount int
+	// BattWarned: the battery warning was sent and is not yet re-armed.
+	BattWarned bool
+	// BattMissNotified: "battery temperature unavailable" was sent.
+	BattMissNotified bool
+
 	FailCount    int
 	FailNotified bool
 
@@ -95,7 +119,8 @@ type ThermalFSM struct {
 
 	LastHotNotify  time.Time
 	LastFairNotify time.Time
-	// CPUQuietUntil suppresses the cpu_sleep_c trigger after an abort.
+	// CPUQuietUntil suppresses the cpu_sleep_c and battery_sleep_c
+	// triggers after an abort. battery_critical_c is never suppressed.
 	CPUQuietUntil time.Time
 
 	// Pending is set while State is SLEEP_PENDING.
@@ -168,6 +193,13 @@ func (r thermalRules) Step(s ThermalFSM, in ThermalInput, now time.Time) (Therma
 	s.CalmCount = countIf(st < contracts.ThermalSerious, s.CalmCount)
 	cpuHot := c.CPUSleepC != nil && in.Reading.CPUC != nil && *in.Reading.CPUC >= *c.CPUSleepC
 	s.CPUHotCount = countIf(cpuHot, s.CPUHotCount)
+	batt := in.Reading.BatteryC
+	s.BattWarmCount = countIf(batt != nil && *batt >= c.BatteryWarnC, s.BattWarmCount)
+	s.BattHotCount = countIf(batt != nil && *batt >= c.BatterySleepC, s.BattHotCount)
+	s.BattCritCount = countIf(batt != nil && *batt >= c.BatteryCriticalC, s.BattCritCount)
+	s.BattCalmCount = countIf(batt != nil && *batt < c.BatteryWarnC, s.BattCalmCount)
+	s.BattMissCount = countIf(batt == nil, s.BattMissCount)
+	acts = append(acts, r.batteryMissing(&s, in.Status)...)
 
 	switch s.State {
 	case contracts.FSMNominal, contracts.FSMFair:
@@ -224,19 +256,53 @@ func (r thermalRules) Step(s ThermalFSM, in ThermalInput, now time.Time) (Therma
 	}
 
 	// Sleep triggers.
+	upgradable := s.State != contracts.FSMSleepPending || s.Pending.Abortable
 	switch {
 	case s.CritCount >= c.CriticalPolls && (s.State == contracts.FSMHot ||
-		(s.State == contracts.FSMSleepPending && s.Pending.Trigger != contracts.SleepTriggerCritical)):
+		(s.State == contracts.FSMSleepPending && s.Pending.Abortable)):
 		acts = append(acts, r.startPending(&s, contracts.SleepTriggerCritical,
 			fmt.Sprintf("critical heat for %d polls", s.CritCount), now, in.Status)...)
+	case s.BattCritCount >= batteryPolls && upgradable:
+		acts = append(acts, r.startPending(&s, contracts.SleepTriggerBatteryCritical,
+			fmt.Sprintf("battery %.0f°C >= %.0f°C", *batt, c.BatteryCriticalC), now, in.Status)...)
 	case s.State == contracts.FSMHot && s.HotFor >= c.SeriousSleepAfter:
 		acts = append(acts, r.startPending(&s, contracts.SleepTriggerSerious,
 			fmt.Sprintf("hot for %s", humanize.Duration(s.HotFor)), now, in.Status)...)
+	case s.BattHotCount >= batteryPolls && s.State != contracts.FSMSleepPending && !now.Before(s.CPUQuietUntil):
+		acts = append(acts, r.startPending(&s, contracts.SleepTriggerBatteryTemp,
+			fmt.Sprintf("battery %.0f°C >= %.0f°C", *batt, c.BatterySleepC), now, in.Status)...)
 	case s.CPUHotCount >= cpuSleepPolls && s.State != contracts.FSMSleepPending && !now.Before(s.CPUQuietUntil):
 		acts = append(acts, r.startPending(&s, contracts.SleepTriggerCPUTemp,
 			fmt.Sprintf("CPU %.0f°C >= %.0f°C", *in.Reading.CPUC, *c.CPUSleepC), now, in.Status)...)
 	}
+
+	// Battery warning, unless a pending sleep already says more.
+	if s.BattCalmCount >= c.CooledPolls {
+		s.BattWarned = false
+	}
+	if s.BattWarmCount >= batteryPolls && !s.BattWarned && s.State != contracts.FSMSleepPending {
+		s.BattWarned = true
+		acts = append(acts, notifyAttention(contracts.PriorityHigh, fmt.Sprintf("Battery warm (%.0f°C) - open the bag", *batt),
+			fmt.Sprintf("Sleeping at %.0f°C (abortable) or %.0f°C (not abortable). %s", c.BatterySleepC, c.BatteryCriticalC, in.Status),
+			"battery", "warning"))
+	}
 	return s, acts
+}
+
+// batteryMissing notifies once when battery °C has been unreadable for
+// thermalFailNotifyPolls polls, and again when it is back.
+func (r thermalRules) batteryMissing(s *ThermalFSM, status string) []Action {
+	switch {
+	case s.BattMissCount >= thermalFailNotifyPolls && !s.BattMissNotified:
+		s.BattMissNotified = true
+		return []Action{notifyAttention(contracts.PriorityHigh, "Battery temperature unavailable",
+			fmt.Sprintf("%d readings without battery °C. Battery heat protection is off; the thermal state rules still run. %s", s.BattMissCount, status),
+			"warning")}
+	case s.BattMissCount == 0 && s.BattMissNotified:
+		s.BattMissNotified = false
+		return []Action{notifyInfo(contracts.PriorityLow, "Battery temperature back", status, "white_check_mark")}
+	}
+	return nil
 }
 
 // Expire ends the grace period when it is over: SLEEP_PENDING becomes
@@ -269,7 +335,8 @@ func (r thermalRules) Abort(s ThermalFSM, by string, now time.Time) (ThermalFSM,
 	p := s.Pending
 	s.Pending = nil
 	s.CPUQuietUntil = now.Add(r.Cfg.SeriousSleepAfter)
-	s.CPUHotCount = 0
+	s.CPUHotCount, s.BattHotCount = 0, 0
+	s.BattWarned = true // the pending-sleep notice already said it
 	if s.Last >= contracts.ThermalSerious {
 		s.State = contracts.FSMHot
 		s.HotSince, s.HotFor, s.LastHotNotify = now, 0, now
@@ -319,8 +386,9 @@ func (r thermalRules) hotNotify(s *ThermalFSM, st contracts.ThermalState, now ti
 }
 
 func (r thermalRules) startPending(s *ThermalFSM, trig contracts.SleepTrigger, reason string, now time.Time, status string) []Action {
+	critical := trig == contracts.SleepTriggerCritical || trig == contracts.SleepTriggerBatteryCritical
 	grace := r.Cfg.SeriousGrace
-	if trig == contracts.SleepTriggerCritical {
+	if critical {
 		grace = r.Cfg.CriticalGrace
 	}
 	at := now.Add(grace)
@@ -328,7 +396,7 @@ func (r thermalRules) startPending(s *ThermalFSM, trig contracts.SleepTrigger, r
 		at = s.Pending.At // an upgrade never postpones the sleep
 	}
 	s.State = contracts.FSMSleepPending
-	s.Pending = &PendingSleep{Trigger: trig, Reason: reason, At: at, Abortable: trig != contracts.SleepTriggerCritical}
+	s.Pending = &PendingSleep{Trigger: trig, Reason: reason, At: at, Abortable: !critical}
 	in := humanize.Duration(at.Sub(now))
 	var n Action
 	if s.Pending.Abortable {

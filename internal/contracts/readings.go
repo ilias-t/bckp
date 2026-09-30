@@ -74,16 +74,19 @@ func (s *ThermalState) UnmarshalText(b []byte) error {
 // ThermalReading is one thermal poll.
 //
 // State comes from the cgo ProcessInfo.thermalState shim
-// (providers/thermal); CPUC/GPUC come from macmon (providers/macmon).
+// (providers/thermal); CPUC/GPUC come from macmon (providers/macmon);
+// BatteryC is the battery's own fuel-gauge sensor, read in-process by the
+// same shim (nil when unreadable, e.g. no battery).
 // providers/thermal is a combining ThermalSource that fills all three. Temperatures are
 // advisory: nil means unavailable (macmon missing, failed, or implausible).
 // The "ignore readings below 15°C" filter (idle GPU reads ~4°C) is the
 // provider's job; consumers never see such values.
 type ThermalReading struct {
-	State ThermalState `json:"state"`
-	CPUC  *float64     `json:"cpu_c,omitempty"`
-	GPUC  *float64     `json:"gpu_c,omitempty"`
-	At    time.Time    `json:"at"`
+	State    ThermalState `json:"state"`
+	CPUC     *float64     `json:"cpu_c,omitempty"`
+	GPUC     *float64     `json:"gpu_c,omitempty"`
+	BatteryC *float64     `json:"battery_c,omitempty"`
+	At       time.Time    `json:"at"`
 }
 
 // PowerReading is one power poll (pmset -g batt plus ioreg

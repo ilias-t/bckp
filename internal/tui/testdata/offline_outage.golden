@@ -1,6 +1,6 @@
 backpack  awake  1h23m left (ends 22:23)                                pid 4242
 ────────────────────────────────────────────────────────────────────────────────
-HEAT     [NOMINAL]  CPU 52.3°C  GPU 41.0°C  fsm NOMINAL
+HEAT     [NOMINAL]  CPU 52.3°C  GPU 41.0°C  BATT 33.6°C  fsm NOMINAL
          cpu ▁▂▃▄▅▆▇█ 50–52°C
 POWER    AC 87% charging  lid closed  SleepDisabled yes  lease held
 NETWORK  en10  OFFLINE 3m12s  gw unreachable  iPhone USB  Wi-Fi off

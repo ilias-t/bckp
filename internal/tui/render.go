@@ -209,6 +209,9 @@ func renderHeat(m model, w int) []string {
 	if cpu != nil || gpu != nil {
 		fields = append(fields, tempField(st, "CPU", cpu), tempField(st, "GPU", gpu))
 	}
+	if th.Reading != nil && th.Reading.BatteryC != nil {
+		fields = append(fields, tempField(st, "BATT", th.Reading.BatteryC))
+	}
 	fsm := string(th.FSM)
 	if fsm == "" {
 		fsm = "?"

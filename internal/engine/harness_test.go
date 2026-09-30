@@ -47,9 +47,19 @@ type harness struct {
 	runErr chan error
 }
 
+// legacyThermalTiming pins the thermal timings these tests were written
+// against (10m hot, 60s grace, 2 calm polls). They test the machinery,
+// not the defaults; config_test.go covers the defaults.
+func legacyThermalTiming(c *config.Thermal) {
+	c.SeriousSleepAfter = 10 * time.Minute
+	c.SeriousGrace = 60 * time.Second
+	c.CooledPolls = 2
+}
+
 func newHarness(t *testing.T, mutate func(*config.Config)) *harness {
 	t.Helper()
 	cfg := config.Default()
+	legacyThermalTiming(&cfg.Thermal)
 	// Most tests exercise the watchdog alone; auto has its own tests.
 	cfg.Network.PreferHotspot = config.HotspotOff
 	// Most tests check what reaches the notifier; the push policy has its
@@ -63,7 +73,7 @@ func newHarness(t *testing.T, mutate func(*config.Config)) *harness {
 		t:        t,
 		cfg:      cfg,
 		clock:    clock,
-		thermal:  fakes.NewThermal(clock, contracts.ThermalReading{State: contracts.ThermalNominal}),
+		thermal:  fakes.NewThermal(clock, calmReading(contracts.ThermalNominal)),
 		power:    fakes.NewPower(clock, contracts.PowerReading{OnAC: true, Percent: 100, LidClosed: true, SleepDisabled: true}),
 		net:      fakes.NewNetwork(clock, testOrder...),
 		notifier: fakes.NewNotifier(),
@@ -232,6 +242,13 @@ func (h *harness) journalExists() bool {
 
 func (h *harness) pushThermal(st contracts.ThermalState, n int) {
 	for range n {
-		h.thermal.Push(contracts.ThermalReading{State: st})
+		h.thermal.Push(calmReading(st))
 	}
+}
+
+// calmReading is a reading in state st with a calm battery, so the
+// battery rules stay quiet unless a test sets BatteryC itself.
+func calmReading(st contracts.ThermalState) contracts.ThermalReading {
+	b := 30.0
+	return contracts.ThermalReading{State: st, BatteryC: &b}
 }

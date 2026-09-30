@@ -39,8 +39,8 @@ func TestReadKernel(t *testing.T) {
 func TestStatusRunning(t *testing.T) {
 	te := newTestEnv(t)
 	s := runningSnap()
-	c := 71.5
-	s.Thermal = contracts.ThermalStatus{FSM: contracts.FSMHot, Reading: &contracts.ThermalReading{State: contracts.ThermalSerious, CPUC: &c}, HotSince: testNow.Add(-5 * 60e9)}
+	c, b := 71.5, 38.2
+	s.Thermal = contracts.ThermalStatus{FSM: contracts.FSMHot, Reading: &contracts.ThermalReading{State: contracts.ThermalSerious, CPUC: &c, BatteryC: &b}, HotSince: testNow.Add(-5 * 60e9)}
 	s.SleepPending = &contracts.SleepPending{Trigger: contracts.SleepTriggerSerious, Reason: "hot for 10m", RemainingS: 42, Abortable: true}
 	s.Power = &contracts.PowerReading{Percent: 80, LidClosed: true}
 	s.Errors = map[string]string{"network": "probe failed"}
@@ -51,7 +51,7 @@ func TestStatusRunning(t *testing.T) {
 	}
 	out := te.out.String()
 	for _, want := range []string{
-		"backpack: awake until 23:40 (pid 4242)", "HOT (serious, CPU 72°C)", "SLEEP", "in 42s",
+		"backpack: awake until 23:40 (pid 4242)", "HOT (serious, CPU 72°C, battery 38°C)", "SLEEP", "in 42s",
 		"80% on battery, lid closed", "watchdog, online", "lease     held", "network: probe failed",
 		"kernel    SleepDisabled=Yes, lid closed",
 	} {

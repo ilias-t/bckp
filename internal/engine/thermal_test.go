@@ -16,14 +16,17 @@ var t0 = time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
 
 const poll = 15 * time.Second
 
-// thermalSeq expands "n x4 f s x40 c e u 96C" into readings: n/f/s/c are
-// nominal/fair/serious/critical, u is ThermalUnknown, e is a read error,
-// "xN" repeats the previous token to N total, and "<n>C" sets CPU °C for
-// the following readings.
+// thermalSeq expands "n x4 f s x40 c e u 96C 41B" into readings: n/f/s/c
+// are nominal/fair/serious/critical, u is ThermalUnknown, e is a read
+// error, "xN" repeats the previous token to N total, "<n>C" sets CPU °C
+// and "<n>B" battery °C for the following readings ("-B": unreadable).
+// Battery °C starts at a calm 30.
 func thermalSeq(t *testing.T, spec string) []ThermalInput {
 	t.Helper()
 	var out []ThermalInput
 	var cpu *float64
+	batt30 := 30.0
+	batt := &batt30
 	names := map[string]contracts.ThermalState{
 		"n": contracts.ThermalNominal, "f": contracts.ThermalFair, "s": contracts.ThermalSerious,
 		"c": contracts.ThermalCritical, "u": contracts.ThermalUnknown,
@@ -38,6 +41,14 @@ func thermalSeq(t *testing.T, spec string) []ThermalInput {
 			for i := 1; i < n; i++ {
 				out = append(out, out[len(out)-1])
 			}
+		case tok == "-B":
+			batt = nil
+		case strings.HasSuffix(tok, "B"):
+			v, err := strconv.ParseFloat(strings.TrimSuffix(tok, "B"), 64)
+			if err != nil {
+				t.Fatalf("bad battery temp %q", tok)
+			}
+			batt = &v
 		case strings.HasSuffix(tok, "C"):
 			v, err := strconv.ParseFloat(strings.TrimSuffix(tok, "C"), 64)
 			if err != nil {
@@ -51,7 +62,7 @@ func thermalSeq(t *testing.T, spec string) []ThermalInput {
 			if !ok {
 				t.Fatalf("bad token %q", tok)
 			}
-			out = append(out, ThermalInput{Reading: contracts.ThermalReading{State: st, CPUC: cpu}})
+			out = append(out, ThermalInput{Reading: contracts.ThermalReading{State: st, CPUC: cpu, BatteryC: batt}})
 		}
 	}
 	return out
@@ -91,7 +102,9 @@ func runThermal(t *testing.T, r thermalRules, s ThermalFSM, spec string, start t
 }
 
 func defaultThermal() thermalRules {
-	return thermalRules{Cfg: config.Default().Thermal, Poll: poll}
+	cfg := config.Default().Thermal
+	legacyThermalTiming(&cfg)
+	return thermalRules{Cfg: cfg, Poll: poll}
 }
 
 func TestThermalStep(t *testing.T) {
@@ -211,6 +224,38 @@ func TestThermalStep(t *testing.T) {
 		},
 		{
 			name: "cpu_sleep_c unset ignores temperature", spec: "120C n x5", state: contracts.FSMNominal,
+		},
+		{name: "one warm battery poll does not warn", spec: "41B n 30B n 41B n 30B n", state: contracts.FSMNominal},
+		{
+			name: "warm battery x2 warns once", spec: "41B n x5", state: contracts.FSMNominal,
+			want: []string{"2:p4:Battery warm (41°C) - open the bag"},
+		},
+		{
+			name: "battery warning re-arms after cooled_polls below warn", spec: "41B n x2 30B n x2 41B n x2", state: contracts.FSMNominal,
+			want: []string{"2:p4:Battery warm (41°C) - open the bag", "6:p4:Battery warm (41°C) - open the bag"},
+		},
+		{
+			name: "battery_sleep_c x2 starts an abortable sleep instead of the warning", spec: "46B n x2", state: contracts.FSMSleepPending,
+			want: []string{"2:sleep-pending:battery_temp", "2:p5:Sleeping in 1m: battery 46°C >= 45°C"},
+		},
+		{
+			name: "battery sleep fires while the thermal state stays nominal", spec: "41B n x2 46B n x2", state: contracts.FSMSleepPending,
+			want: []string{"2:p4:Battery warm (41°C) - open the bag", "4:sleep-pending:battery_temp", "4:p5:Sleeping in 1m: battery 46°C >= 45°C"},
+		},
+		{
+			name: "battery_critical_c x2 starts a non-abortable sleep", spec: "51B n x2", state: contracts.FSMSleepPending,
+			want: []string{"2:sleep-pending:battery_critical", "2:p5:Sleeping in 15s: battery 51°C >= 50°C"},
+		},
+		{
+			name: "critical battery upgrades a pending battery sleep", spec: "46B n x2 51B n x2", state: contracts.FSMSleepPending,
+			want: []string{
+				"2:sleep-pending:battery_temp", "2:p5:Sleeping in 1m: battery 46°C >= 45°C",
+				"4:sleep-pending:battery_critical", "4:p5:Sleeping in 15s: battery 51°C >= 50°C",
+			},
+		},
+		{
+			name: "unreadable battery notifies once after 4 polls, and when back", spec: "-B n x6 30B n", state: contracts.FSMNominal,
+			want: []string{"4:p4:Battery temperature unavailable", "7:p2:Battery temperature back"},
 		},
 	}
 	for _, tc := range tests {
@@ -340,5 +385,49 @@ func TestThermalCPUTriggerQuietAfterAbort(t *testing.T) {
 	s, _, _ = runThermal(t, r, s, "96C n x2", now.Add(40*poll))
 	if s.State != contracts.FSMSleepPending {
 		t.Fatalf("cpu trigger after quiet period: %s", s.State)
+	}
+}
+
+func TestThermalDefaultTimings(t *testing.T) {
+	r := thermalRules{Cfg: config.Default().Thermal, Poll: poll}
+	// 3m hot is 12 polls after entering HOT; a 30s grace.
+	s, got, _ := runThermal(t, r, NewThermalFSM(), "s x13", t0)
+	want := []string{"1:p4:Mac is HOT (serious) - open the bag", "13:sleep-pending:serious", "13:p5:Sleeping in 30s: hot for 3m"}
+	if s.State != contracts.FSMSleepPending || strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("state %s, actions:\n got %q\nwant %q", s.State, got, want)
+	}
+	// Under 2 minutes of calm (8 polls) does not reset the hot timer, so
+	// swinging between serious and fair still ends in a sleep.
+	s, _, _ = runThermal(t, r, NewThermalFSM(), "s x6 f x7 s x7", t0)
+	if s.State != contracts.FSMSleepPending {
+		t.Fatalf("state = %s, want SLEEP_PENDING despite brief cool spells", s.State)
+	}
+}
+
+func TestThermalBatteryTriggerQuietAfterAbort(t *testing.T) {
+	r := defaultThermal()
+	s, _, now := runThermal(t, r, NewThermalFSM(), "46B n x2", t0)
+	if s.State != contracts.FSMSleepPending || !s.Pending.Abortable {
+		t.Fatalf("state = %s %+v", s.State, s.Pending)
+	}
+	s, _, err := r.Abort(s, "extend", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _, _ = runThermal(t, r, s, "46B n x39", now) // < 10m
+	if s.State == contracts.FSMSleepPending {
+		t.Fatal("battery trigger fired during the quiet period")
+	}
+	s, _, _ = runThermal(t, r, s, "46B n x2", now.Add(40*poll))
+	if s.State != contracts.FSMSleepPending {
+		t.Fatalf("battery trigger after quiet period: %s", s.State)
+	}
+
+	// The quiet period never mutes the critical battery threshold.
+	s, _, now = runThermal(t, r, NewThermalFSM(), "46B n x2", t0)
+	s, _, _ = r.Abort(s, "extend", now)
+	s, _, _ = runThermal(t, r, s, "51B n x2", now)
+	if s.State != contracts.FSMSleepPending || s.Pending.Abortable || s.Pending.Trigger != contracts.SleepTriggerBatteryCritical {
+		t.Fatalf("critical battery during quiet period: %s %+v", s.State, s.Pending)
 	}
 }

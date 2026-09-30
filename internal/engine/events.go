@@ -58,6 +58,8 @@ func (e *Engine) logStart(opts Options) {
 		slog.Group("config",
 			"poll", dur(c.Session.Poll), "max_duration", dur(c.Session.MaxDuration),
 			"battery_floor", c.Power.BatteryFloor, "cpu_sleep", cpuSleep,
+			"battery_warn_c", c.Thermal.BatteryWarnC, "battery_sleep_c", c.Thermal.BatterySleepC,
+			"battery_critical_c", c.Thermal.BatteryCriticalC,
 			"serious_sleep_after", dur(c.Thermal.SeriousSleepAfter),
 			"watchdog", c.Network.Watchdog, "prefer_hotspot", string(c.Network.PreferHotspot),
 			"service", c.Network.Service,
@@ -95,6 +97,9 @@ func thermalAttrs(r *contracts.ThermalReading) []any {
 	}
 	if r.GPUC != nil {
 		out = append(out, "gpu_c", round1(*r.GPUC))
+	}
+	if r.BatteryC != nil {
+		out = append(out, "battery_c", round1(*r.BatteryC))
 	}
 	return out
 }

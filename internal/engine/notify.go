@@ -76,6 +76,9 @@ func (e *Engine) heartbeat(now time.Time) {
 		if r.CPUC != nil {
 			title += fmt.Sprintf(", CPU %.0f°C", *r.CPUC)
 		}
+		if r.BatteryC != nil {
+			title += fmt.Sprintf(", battery %.0f°C", *r.BatteryC)
+		}
 	}
 	e.status = e.statusLine(now)
 	e.send(now, contracts.Notification{Priority: e.cfg.Notify.HeartbeatPriority, Title: title, Body: e.status, Tags: []string{"thermometer"},

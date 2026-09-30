@@ -1,6 +1,7 @@
 backpack  sleep pending 0:15  forever (cap Tue 08:53)                   pid 4242
 ────────────────────────────────────────────────────────────────────────────────
-HEAT     [CRITICAL]  CPU 101.5°C  GPU 71.2°C  fsm SLEEP_PENDING  hot 10m
+HEAT     [CRITICAL]  CPU 101.5°C  GPU 71.2°C  BATT 44.1°C  fsm SLEEP_PENDING
+         hot 10m
          cpu ▁▁▁▂▂▂▂▂▂▃▃▃▃▃▄▄▄▄▄▄▅▅▅▅▅▅▆▆▆▆▆▇▇▇▇▇▇███ 80–102°C
          ⏾ sleep in 0:15 — critical x2 (critical, cannot be aborted)
 POWER    AC 87% charging  lid closed  SleepDisabled yes  lease held

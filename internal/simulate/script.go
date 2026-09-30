@@ -46,6 +46,7 @@ consume no poll:
   batt:N                                battery percent (0-100)
   lid:open | lid:closed                 clamshell state (informational)
   cpu:N | cpu:none                      CPU °C (for thermal.cpu_sleep_c)
+  btemp:N | btemp:none                  battery °C (default 30; for thermal.battery_*_c)
   unplug | plug                         iPhone unplugged (no hotspot interface; online
                                         means Wi-Fi) / plugged back in (the default).
                                         The wifi:* tokens unplug too.
@@ -84,6 +85,7 @@ type thermalInput struct {
 	state contracts.ThermalState
 	fail  bool
 	cpu   *float64
+	battC *float64
 }
 
 // netInput is the network part of one poll.
@@ -121,12 +123,15 @@ type plan struct {
 	hotspot config.HotspotPref
 	// watchdog overrides network.watchdog when set.
 	watchdog *bool
+	// btemp: the script sets battery °C, so poll lines show it.
+	btemp bool
 }
 
 func parse(script string, pollEvery time.Duration) (*plan, error) {
 	p := &plan{cmds: map[int][]command{}, forever: true}
+	calmBattery := 30.0
 	cur := pollInput{
-		thermal: thermalInput{state: contracts.ThermalNominal},
+		thermal: thermalInput{state: contracts.ThermalNominal, battC: &calmBattery},
 		power:   contracts.PowerReading{OnAC: true, Percent: 100, LidClosed: true, SleepDisabled: true},
 		net:     netInput{kind: "online"},
 	}
@@ -226,6 +231,16 @@ func parse(script string, pollEvery time.Duration) (*plan, error) {
 			}
 			cur.thermal.cpu = &v
 			pendingSettings = true
+		case lower == "btemp:none":
+			cur.thermal.battC = nil
+			p.btemp, pendingSettings = true, true
+		case name == "btemp" && hasArg:
+			v, err := strconv.ParseFloat(arg, 64)
+			if err != nil || v < 0 || v > 100 {
+				return nil, bad("want btemp:<°C> or btemp:none")
+			}
+			cur.thermal.battC = &v
+			p.btemp, pendingSettings = true, true
 
 		case lower == "stop" || lower == "stop:sleep" || lower == "stop:nosleep" || lower == "lease:lost" || name == "extend":
 			if len(p.polls) == 0 {

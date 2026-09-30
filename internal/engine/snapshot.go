@@ -183,6 +183,9 @@ func (e *Engine) statusLine(now time.Time) string {
 		if r.GPUC != nil {
 			t += fmt.Sprintf(" GPU %.0f°C", *r.GPUC)
 		}
+		if r.BatteryC != nil {
+			t += fmt.Sprintf(", battery %.0f°C", *r.BatteryC)
+		}
 		parts = append(parts, t)
 	} else {
 		parts = append(parts, "thermal ?")

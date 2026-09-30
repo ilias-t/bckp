@@ -527,6 +527,8 @@ func (s *sim) header(script string) {
 		t.FairPolls, humanize.Duration(t.FairCooldown), humanize.Duration(t.HotRenotify), humanize.Duration(t.SeriousSleepAfter), humanize.Duration(t.SeriousGrace))
 	fmt.Fprintf(w, "            critical x%d (grace %s, not abortable) | cooled after %d | nominal after %d | cpu_sleep_c %s\n",
 		t.CriticalPolls, humanize.Duration(t.CriticalGrace), t.CooledPolls, t.NominalPolls, cpu)
+	fmt.Fprintf(w, "            battery °C warn %.0f | sleep %.0f (abortable) | %.0f (not abortable)\n",
+		t.BatteryWarnC, t.BatterySleepC, t.BatteryCriticalC)
 	fmt.Fprintf(w, "  session   cap %s (warn %s before) | heartbeat %s | battery floor %d%%\n",
 		humanize.Duration(c.Session.MaxDuration), humanize.Duration(c.Session.MaxDurationWarning), humanize.Duration(c.Notify.Heartbeat), c.Power.BatteryFloor)
 	fmt.Fprintf(w, "  network   %s | recover after %s offline, at most every %s%s\n\n",
@@ -597,7 +599,7 @@ func (t thermalSrc) Read(ctx context.Context) (contracts.ThermalReading, error) 
 	if in.thermal.fail {
 		return contracts.ThermalReading{}, errors.New("simulated thermal read failure")
 	}
-	return contracts.ThermalReading{State: in.thermal.state, CPUC: in.thermal.cpu, At: s.clock.Now()}, nil
+	return contracts.ThermalReading{State: in.thermal.state, CPUC: in.thermal.cpu, BatteryC: in.thermal.battC, At: s.clock.Now()}, nil
 }
 
 // short renders poll i's thermal input.
@@ -609,6 +611,13 @@ func (s *sim) short(i int) string {
 	}
 	if in.thermal.cpu != nil {
 		th += fmt.Sprintf(" %.0f°C", *in.thermal.cpu)
+	}
+	if s.p.btemp {
+		if in.thermal.battC != nil {
+			th += fmt.Sprintf(" batt %.0f°C", *in.thermal.battC)
+		} else {
+			th += " batt unreadable"
+		}
 	}
 	return th
 }

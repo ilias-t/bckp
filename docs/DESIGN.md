@@ -28,6 +28,19 @@ Silicon with macOS 27.
   - `pmset -g batt` gives the power source and charge.
   - `macmon`, when installed, gives CPU and GPU °C. The idle GPU sensor reads
     about 4°C, so readings under 15°C are dropped.
+  - The battery's fuel gauge publishes "gas gauge battery" temperature
+    services through the private `IOHIDEventSystemClient` API (usage page
+    0xff00, usage 5). The cgo shim reads them in-process and keeps the
+    hottest reading within 1–99°C; other sensors on that page read
+    nonsense such as -9202°C.
+- **The thermal state misses heat in a bag.** It tracks throttling
+  pressure, not temperature. A closed MacBook in a bag can heat its case
+  and battery while the chip stays cool enough that the state reads
+  nominal throughout ([Lidless #34](https://github.com/nghialuong/Lidless/issues/34)
+  saw 75 minutes of this). The battery is the part at risk: Apple says
+  ambient heat above 35°C can permanently damage battery capacity, and
+  the chip throttles and shuts itself down before it is harmed. So
+  battery °C is a safety input, not advisory.
 - **Network changes need no root for admin users.**
   `networksetup -ordernetworkservices`, `-setnetworkserviceenabled` and
   `-setairportpower` all work. `networksetup` exits 0 even when it fails, so
@@ -146,8 +159,9 @@ recorded output.
 5. **Reboot:** `RunAtLoad` resets the flag, and sessions never resume on
    their own.
 6. **Hard-coded backstops in the daemon:** it polls every 10s. Two critical
-   thermal readings in a row, or the internal battery under 10%, end the
-   lease and put the Mac to sleep. These are not configurable.
+   thermal readings in a row, two battery readings at or above 50°C, or the
+   internal battery under 10%, end the lease and put the Mac to sleep.
+   These are not configurable; `thermal.battery_*_c` cannot exceed 50.
 7. **Idle check:** with no lease, the daemon reads `SleepDisabled` every 60s
    and resets it when it is `Yes`. A reset that did not verify is retried
    at the next check. A manual `sudo pmset -a disablesleep 1` is undone
@@ -171,14 +185,18 @@ clock.
 | NOMINAL | — | — |
 | FAIR | 2 fair polls in a row | Info notification, at most once per 30m. |
 | HOT | Serious, entered at once | Alert, repeated every 10m. The hot timer starts. |
-| SLEEP_PENDING | HOT for 10 minutes straight, or critical for 2 polls | Alert: the Mac sleeps in 60s (15s when critical). A serious-triggered sleep can be aborted (`abort`, `extend`, `stop --no-sleep`). A critical one cannot. |
+| SLEEP_PENDING | HOT for 3 minutes, critical for 2 polls, or battery °C at `battery_sleep_c` (45) or `battery_critical_c` (50) for 2 polls | Alert: the Mac sleeps in 30s (15s when critical or at `battery_critical_c`). A serious or `battery_sleep_c` sleep can be aborted (`abort`, `extend`, `stop --no-sleep`); after an abort that trigger stays quiet for 3 minutes. A critical one cannot. |
 | SLEEPING | Grace period over | Restore the network, flush notifications (at most 5s), ask the daemon to sleep, then exit. |
 
-- Two polls below serious reset the hot timer and send "cooled down".
+- Eight polls (2 minutes) below serious reset the hot timer and send
+  "cooled down", so a Mac swinging between serious and fair still sleeps.
   "Back to nominal" needs 3 polls.
-- °C is advisory. `thermal.cpu_sleep_c` adds an optional °C trigger, off by
-  default.
-- Without macmon, the machine runs on the kernel's thermal state alone.
+- Battery °C at `battery_warn_c` (40) for 2 polls sends one warning,
+  re-armed after 8 polls below it. Four polls without a battery reading
+  send "Battery temperature unavailable" once.
+- CPU °C is advisory. `thermal.cpu_sleep_c` adds an optional CPU °C
+  trigger, off by default: the chip runs near 100°C under normal load and
+  stays cool in a bag, so it says little about bag heat.
 
 ### Power
 

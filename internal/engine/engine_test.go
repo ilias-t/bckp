@@ -772,14 +772,14 @@ func TestHeartbeat(t *testing.T) {
 	h.wait()
 	var hb *contracts.Notification
 	for _, n := range h.notifier.Attempts() {
-		if n.Title == "Mac: nominal" {
+		if n.Title == "Mac: nominal, battery 30°C" {
 			hb = &n
 		}
 	}
 	if hb == nil || hb.Priority != 2 {
 		t.Fatalf("heartbeat = %+v; titles %v", hb, h.titles())
 	}
-	for _, want := range []string{"thermal nominal", "load 1.50", "AC 100%", "lid closed", "net en10", "forever, cap in 11h30m"} {
+	for _, want := range []string{"thermal nominal, battery 30°C", "load 1.50", "AC 100%", "lid closed", "net en10", "forever, cap in 11h30m"} {
 		if !strings.Contains(hb.Body, want) {
 			t.Errorf("heartbeat body missing %q: %s", want, hb.Body)
 		}

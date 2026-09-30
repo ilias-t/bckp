@@ -24,6 +24,11 @@ const (
 	SleepTriggerCritical SleepTrigger = "critical"
 	// SleepTriggerCPUTemp: optional cpu_sleep_c threshold. Abortable.
 	SleepTriggerCPUTemp SleepTrigger = "cpu_temp"
+	// SleepTriggerBatteryTemp: battery_sleep_c threshold. Abortable.
+	SleepTriggerBatteryTemp SleepTrigger = "battery_temp"
+	// SleepTriggerBatteryCritical: battery_critical_c threshold. Never
+	// abortable.
+	SleepTriggerBatteryCritical SleepTrigger = "battery_critical"
 )
 
 // EndReason says why a session ended.
@@ -209,7 +214,8 @@ type SleepPending struct {
 	At time.Time `json:"at"`
 	// RemainingS is whole seconds from Snapshot.At to At, floored at 0.
 	RemainingS int64 `json:"remaining_s"`
-	// Abortable is false for SleepTriggerCritical.
+	// Abortable is false for SleepTriggerCritical and
+	// SleepTriggerBatteryCritical.
 	Abortable bool `json:"abortable"`
 }
 

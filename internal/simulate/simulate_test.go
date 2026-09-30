@@ -46,7 +46,7 @@ func TestParse(t *testing.T) {
 
 	for _, bad := range []string{
 		"", "x3", "nominal x0", "nominal x2 x2", "sersious", "batt:101", "nominal for:5m",
-		"stop nominal", "nominal ac:off", "extend:0", "wait:-1m", "cpu:hot", "nominal cpu:95",
+		"stop nominal", "nominal ac:off", "extend:0", "wait:-1m", "cpu:hot", "nominal cpu:95", "btemp:warm",
 	} {
 		if _, err := parse(bad, 15*time.Second); err == nil {
 			t.Errorf("parse(%q) must fail", bad)
@@ -54,9 +54,19 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// legacyThermalTiming pins the thermal timings these tests were written
+// against (10m hot, 60s grace, 2 calm polls). They test the machinery,
+// not the defaults; config_test.go covers the defaults.
+func legacyThermalTiming(c *config.Thermal) {
+	c.SeriousSleepAfter = 10 * time.Minute
+	c.SeriousGrace = 60 * time.Second
+	c.CooledPolls = 2
+}
+
 func run(t *testing.T, script string, mutate func(*config.Config)) string {
 	t.Helper()
 	cfg := config.Default()
+	legacyThermalTiming(&cfg.Thermal)
 	if mutate != nil {
 		mutate(&cfg)
 	}
@@ -199,6 +209,16 @@ func TestCPUSleepScenario(t *testing.T) {
 		c.Thermal.CPUSleepC = &v
 	})
 	mustContain(t, out, `cpu_sleep_c 95°C`, `SLEEP_PENDING \(cpu_temp in 60s, abortable\)`, `ended\s+stopped`, `sleepnow x0`)
+}
+
+func TestBatteryTempScenario(t *testing.T) {
+	out := run(t, "btemp:41 nominal x2 btemp:46 nominal x2 stop:nosleep", nil)
+	mustContain(t, out,
+		`battery °C warn 40 \| sleep 45 \(abortable\) \| 50 \(not abortable\)`,
+		`nominal batt 41°C`,
+		`p4 Battery warm \(41°C\) - open the bag`,
+		`SLEEP_PENDING \(battery_temp in 60s, abortable\)`,
+		`ended\s+stopped`)
 }
 
 func TestDeterministic(t *testing.T) {

@@ -182,12 +182,18 @@ Everything else is only logged (`bckp logs`).
   re-enables sleep at once; in testing that took 79 ms. A hung backpack
   loses the lease within 90s. The helper also resets the setting when it
   starts, so after a reboot the Mac sleeps normally again.
-- **Heat backstop:** backpack sleeps the Mac after 10 minutes of serious
-  heat (60s warning; cancel with `bckp abort`) or at critical heat (15s,
+- **Heat backstop:** backpack sleeps the Mac after 3 minutes of serious
+  heat (30s warning; cancel with `bckp abort`) or at critical heat (15s,
   no cancelling).
+- **Battery heat:** in a closed bag the case and battery can heat up while
+  the chip stays cool enough that macOS still reports "nominal". backpack
+  reads the battery's own temperature sensor and warns at 40°C, sleeps at
+  45°C (30s, cancellable) and at 50°C (15s, no cancelling). Apple warns
+  that heat above 35°C can permanently reduce battery capacity; the battery
+  runs about 10°C warmer than the room, so 45°C is roughly a 35°C room.
 - **Battery backstop:** backpack ends the session at 25% battery. The
-  helper itself forces sleep on repeated critical heat or under 10% battery,
-  even if backpack is stuck.
+  helper itself forces sleep on repeated critical heat, a battery at 50°C
+  or under 10% charge, even if backpack is stuck.
 - **Auto-restore:** sessions are capped at 12h (`extend` restarts the
   cap). Network changes are journaled and undone at the end, even after a
   crash.
@@ -205,6 +211,11 @@ environment variable, `BACKPACK_<SECTION>_<KEY>`.
 ```toml
 [session]
 max_duration = "12h"        # cap on every session, even "forever"
+
+[thermal]
+battery_warn_c = 40         # battery °C: warn
+battery_sleep_c = 45        # battery °C: sleep (cancellable)
+battery_critical_c = 50     # battery °C: sleep (not cancellable; max 50)
 
 [power]
 battery_floor = 25          # end the session at this battery %
@@ -233,10 +244,13 @@ push = "attention"          # "all" pushes routine events too
   only nudge macOS to auto-join. Networks the Mac already knows (home, a
   café) win over the hotspot; turn off Auto-Join for them if you want the
   hotspot instead.
-- °C readings need [macmon](https://github.com/vladkens/macmon) (`brew
-  install macmon`) on Apple Silicon. Without it, backpack uses macOS's
-  thermal state (nominal, fair, serious, critical), which is what the
-  safety rules use anyway.
+- CPU and GPU °C need [macmon](https://github.com/vladkens/macmon) (`brew
+  install macmon`) on Apple Silicon; they are shown, and used only by the
+  optional `thermal.cpu_sleep_c`. Battery °C needs no extra install.
+- Battery °C comes from a private macOS interface (the same one macmon and
+  iStat Menus use). If a macOS update breaks it, backpack notifies you
+  ("Battery temperature unavailable") and keeps running on the thermal
+  state rules alone.
 - Network features need an admin account (`networksetup` without sudo).
 - One user per Mac: installing the helper as another user replaces the
   allowed user.

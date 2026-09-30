@@ -2,7 +2,7 @@ backpack  awake  1h23m left (ends 22:23)                                pid 4242
 ────────────────────────────────────────────────────────────────────────────────
 ⚠ connection lost — retry in 4s (attempt 3): engine not running
 
-HEAT     [NOMINAL]  CPU 52.3°C  GPU 41.0°C  fsm NOMINAL
+HEAT     [NOMINAL]  CPU 52.3°C  GPU 41.0°C  BATT 33.6°C  fsm NOMINAL
 POWER    AC 87% charging  lid closed  SleepDisabled yes  lease held
 NETWORK  en10  online via hotspot (USB)  gw reachable  iPhone USB  Wi-Fi on
          hotspot preferred  recoveries 0

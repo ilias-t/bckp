@@ -40,7 +40,7 @@ var classScenarios = []struct {
 		h.do(func() { _, _ = h.e.Extend(context.Background(), 30, false) })
 		stopWith(h, nil)
 		return h
-	}, []string{info + "backpack on (forever)", info + "Mac warming up (fair)", info + "Mac: nominal",
+	}, []string{info + "backpack on (forever)", info + "Mac warming up (fair)", info + "Mac: nominal, battery 30°C",
 		info + "Mac back to nominal", info + "backpack extended (forever session)", info + "backpack off"}},
 	{"hot, abort, critical, sleep failed", func(t *testing.T) *harness {
 		h := newHarness(t, nil)
