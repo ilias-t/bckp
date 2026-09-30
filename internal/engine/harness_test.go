@@ -246,9 +246,13 @@ func (h *harness) pushThermal(st contracts.ThermalState, n int) {
 	}
 }
 
+// calmBatteryC is the battery °C tests use when the battery is not the
+// point: below every threshold.
+const calmBatteryC = 30.0
+
 // calmReading is a reading in state st with a calm battery, so the
 // battery rules stay quiet unless a test sets BatteryC itself.
 func calmReading(st contracts.ThermalState) contracts.ThermalReading {
-	b := 30.0
+	b := calmBatteryC
 	return contracts.ThermalReading{State: st, BatteryC: &b}
 }

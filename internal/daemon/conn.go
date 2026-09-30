@@ -256,12 +256,10 @@ func (s *Server) backstopCheck(bs *backstopState) string {
 		} else {
 			bs.critical = 0
 		}
-		if b := th.BatteryC; b != nil {
-			if *b >= proto.BackstopBatteryTempC {
-				bs.battHot++
-			} else {
-				bs.battHot = 0
-			}
+		if b := th.BatteryC; b != nil && *b >= proto.BackstopBatteryTempC {
+			bs.battHot++
+		} else if b != nil {
+			bs.battHot = 0
 		}
 		switch {
 		case bs.critical >= proto.BackstopCriticalPolls:

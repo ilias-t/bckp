@@ -144,3 +144,14 @@ func TestNetSnapshotLink(t *testing.T) {
 		}
 	}
 }
+
+func TestSleepTriggerAbortable(t *testing.T) {
+	for trig, want := range map[SleepTrigger]bool{
+		SleepTriggerSerious: true, SleepTriggerCPUTemp: true, SleepTriggerBatteryTemp: true,
+		SleepTriggerCritical: false, SleepTriggerBatteryCritical: false, SleepTrigger("new"): false,
+	} {
+		if got := trig.Abortable(); got != want {
+			t.Errorf("%s.Abortable() = %v, want %v", trig, got, want)
+		}
+	}
+}

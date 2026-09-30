@@ -400,13 +400,11 @@ func (c Config) Validate() error {
 		check(*t.CPUSleepC >= 40 && *t.CPUSleepC <= 120,
 			"thermal.cpu_sleep_c must be 40..120 (got %g)", *t.CPUSleepC)
 	}
-	for name, v := range map[string]float64{
-		"battery_warn_c": t.BatteryWarnC, "battery_sleep_c": t.BatterySleepC, "battery_critical_c": t.BatteryCriticalC,
-	} {
-		// The root helper sleeps the Mac at proto.BackstopBatteryTempC
-		// whatever the config says, so higher values would never apply.
-		check(v >= 30 && v <= proto.BackstopBatteryTempC, "thermal.%s must be 30..%g (got %g)", name, proto.BackstopBatteryTempC, v)
-	}
+	check(t.BatteryWarnC >= 30, "thermal.battery_warn_c must be >= 30 (got %g)", t.BatteryWarnC)
+	// The root helper sleeps the Mac at proto.BackstopBatteryTempC whatever
+	// the config says, so a higher value would never apply.
+	check(t.BatteryCriticalC <= proto.BackstopBatteryTempC,
+		"thermal.battery_critical_c must be <= %g, the root helper's limit (got %g)", proto.BackstopBatteryTempC, t.BatteryCriticalC)
 	check(t.BatteryWarnC < t.BatterySleepC && t.BatterySleepC < t.BatteryCriticalC,
 		"thermal battery thresholds must rise: battery_warn_c < battery_sleep_c < battery_critical_c (got %g, %g, %g)",
 		t.BatteryWarnC, t.BatterySleepC, t.BatteryCriticalC)

@@ -32,7 +32,7 @@ func TestBatteryOnThisMachine(t *testing.T) {
 	if c == nil {
 		t.Skip("no battery temperature on this machine")
 	}
-	if *c < 1 || *c > 99 {
+	if *c < minBatteryC || *c > maxBatteryC {
 		t.Fatalf("BatteryC = %v, want a plausible cell temperature", *c)
 	}
 	t.Logf("battery: %.1f°C", *c)

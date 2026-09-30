@@ -119,9 +119,10 @@ type ThermalFSM struct {
 
 	LastHotNotify  time.Time
 	LastFairNotify time.Time
-	// CPUQuietUntil suppresses the cpu_sleep_c and battery_sleep_c
-	// triggers after an abort. battery_critical_c is never suppressed.
-	CPUQuietUntil time.Time
+	// QuietUntil suppresses the abortable °C triggers (cpu_sleep_c,
+	// battery_sleep_c) for SeriousSleepAfter after an abort.
+	// battery_critical_c is never suppressed.
+	QuietUntil time.Time
 
 	// Pending is set while State is SLEEP_PENDING.
 	Pending *PendingSleep
@@ -257,6 +258,8 @@ func (r thermalRules) Step(s ThermalFSM, in ThermalInput, now time.Time) (Therma
 
 	// Sleep triggers.
 	upgradable := s.State != contracts.FSMSleepPending || s.Pending.Abortable
+	// An abortable °C trigger may start a sleep: none pending, not quiet.
+	canStart := s.State != contracts.FSMSleepPending && !now.Before(s.QuietUntil)
 	switch {
 	case s.CritCount >= c.CriticalPolls && (s.State == contracts.FSMHot ||
 		(s.State == contracts.FSMSleepPending && s.Pending.Abortable)):
@@ -268,10 +271,10 @@ func (r thermalRules) Step(s ThermalFSM, in ThermalInput, now time.Time) (Therma
 	case s.State == contracts.FSMHot && s.HotFor >= c.SeriousSleepAfter:
 		acts = append(acts, r.startPending(&s, contracts.SleepTriggerSerious,
 			fmt.Sprintf("hot for %s", humanize.Duration(s.HotFor)), now, in.Status)...)
-	case s.BattHotCount >= batteryPolls && s.State != contracts.FSMSleepPending && !now.Before(s.CPUQuietUntil):
+	case s.BattHotCount >= batteryPolls && canStart:
 		acts = append(acts, r.startPending(&s, contracts.SleepTriggerBatteryTemp,
 			fmt.Sprintf("battery %.0f°C >= %.0f°C", *batt, c.BatterySleepC), now, in.Status)...)
-	case s.CPUHotCount >= cpuSleepPolls && s.State != contracts.FSMSleepPending && !now.Before(s.CPUQuietUntil):
+	case s.CPUHotCount >= cpuSleepPolls && canStart:
 		acts = append(acts, r.startPending(&s, contracts.SleepTriggerCPUTemp,
 			fmt.Sprintf("CPU %.0f°C >= %.0f°C", *in.Reading.CPUC, *c.CPUSleepC), now, in.Status)...)
 	}
@@ -322,8 +325,8 @@ func (r thermalRules) Expire(s ThermalFSM, now time.Time) (ThermalFSM, []Action)
 // s unchanged; with a critical one it returns contracts.ErrNotAbortable.
 //
 // After an abort the hot timer restarts, so a machine that stays hot sleeps
-// again after another SeriousSleepAfter; the cpu_sleep_c trigger is quiet
-// for the same period.
+// again after another SeriousSleepAfter; the cpu_sleep_c and
+// battery_sleep_c triggers are quiet for the same period.
 func (r thermalRules) Abort(s ThermalFSM, by string, now time.Time) (ThermalFSM, []Action, error) {
 	s = s.clone()
 	if s.State != contracts.FSMSleepPending || s.Pending == nil {
@@ -334,9 +337,11 @@ func (r thermalRules) Abort(s ThermalFSM, by string, now time.Time) (ThermalFSM,
 	}
 	p := s.Pending
 	s.Pending = nil
-	s.CPUQuietUntil = now.Add(r.Cfg.SeriousSleepAfter)
-	s.CPUHotCount, s.BattHotCount = 0, 0
-	s.BattWarned = true // the pending-sleep notice already said it
+	s.QuietUntil = now.Add(r.Cfg.SeriousSleepAfter)
+	s.CPUHotCount = 0
+	if p.Trigger == contracts.SleepTriggerBatteryTemp {
+		s.BattWarned = true // the pending-sleep notice already said it
+	}
 	if s.Last >= contracts.ThermalSerious {
 		s.State = contracts.FSMHot
 		s.HotSince, s.HotFor, s.LastHotNotify = now, 0, now
@@ -386,9 +391,8 @@ func (r thermalRules) hotNotify(s *ThermalFSM, st contracts.ThermalState, now ti
 }
 
 func (r thermalRules) startPending(s *ThermalFSM, trig contracts.SleepTrigger, reason string, now time.Time, status string) []Action {
-	critical := trig == contracts.SleepTriggerCritical || trig == contracts.SleepTriggerBatteryCritical
 	grace := r.Cfg.SeriousGrace
-	if critical {
+	if !trig.Abortable() {
 		grace = r.Cfg.CriticalGrace
 	}
 	at := now.Add(grace)
@@ -396,7 +400,7 @@ func (r thermalRules) startPending(s *ThermalFSM, trig contracts.SleepTrigger, r
 		at = s.Pending.At // an upgrade never postpones the sleep
 	}
 	s.State = contracts.FSMSleepPending
-	s.Pending = &PendingSleep{Trigger: trig, Reason: reason, At: at, Abortable: !critical}
+	s.Pending = &PendingSleep{Trigger: trig, Reason: reason, At: at, Abortable: trig.Abortable()}
 	in := humanize.Duration(at.Sub(now))
 	var n Action
 	if s.Pending.Abortable {

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,8 +26,8 @@ func thermalSeq(t *testing.T, spec string) []ThermalInput {
 	t.Helper()
 	var out []ThermalInput
 	var cpu *float64
-	batt30 := 30.0
-	batt := &batt30
+	calm := calmBatteryC
+	batt := &calm
 	names := map[string]contracts.ThermalState{
 		"n": contracts.ThermalNominal, "f": contracts.ThermalFair, "s": contracts.ThermalSerious,
 		"c": contracts.ThermalCritical, "u": contracts.ThermalUnknown,
@@ -429,5 +430,22 @@ func TestThermalBatteryTriggerQuietAfterAbort(t *testing.T) {
 	s, _, _ = runThermal(t, r, s, "51B n x2", now)
 	if s.State != contracts.FSMSleepPending || s.Pending.Abortable || s.Pending.Trigger != contracts.SleepTriggerBatteryCritical {
 		t.Fatalf("critical battery during quiet period: %s %+v", s.State, s.Pending)
+	}
+}
+
+// Aborting a CPU °C sleep says nothing about the battery, so it must not
+// use up the battery warning.
+func TestThermalCPUAbortKeepsBatteryWarning(t *testing.T) {
+	cpu95 := 95.0
+	r := defaultThermal()
+	r.Cfg.CPUSleepC = &cpu95
+	s, _, now := runThermal(t, r, NewThermalFSM(), "96C n x2", t0)
+	s, _, err := r.Abort(s, "extend", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, got, _ := runThermal(t, r, s, "90C 41B n x2", now)
+	if !slices.Contains(got, "2:p4:Battery warm (41°C) - open the bag") {
+		t.Fatalf("no battery warning after a CPU abort: %q", got)
 	}
 }

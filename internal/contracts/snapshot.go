@@ -31,6 +31,16 @@ const (
 	SleepTriggerBatteryCritical SleepTrigger = "battery_critical"
 )
 
+// Abortable reports whether a sleep with this trigger can be cancelled.
+// Unknown triggers are not: a forgotten case must fail safe.
+func (t SleepTrigger) Abortable() bool {
+	switch t {
+	case SleepTriggerSerious, SleepTriggerCPUTemp, SleepTriggerBatteryTemp:
+		return true
+	}
+	return false
+}
+
 // EndReason says why a session ended.
 type EndReason string
 
@@ -214,8 +224,7 @@ type SleepPending struct {
 	At time.Time `json:"at"`
 	// RemainingS is whole seconds from Snapshot.At to At, floored at 0.
 	RemainingS int64 `json:"remaining_s"`
-	// Abortable is false for SleepTriggerCritical and
-	// SleepTriggerBatteryCritical.
+	// Abortable is Trigger.Abortable().
 	Abortable bool `json:"abortable"`
 }
 
