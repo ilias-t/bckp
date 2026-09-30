@@ -449,3 +449,19 @@ func TestThermalCPUAbortKeepsBatteryWarning(t *testing.T) {
 		t.Fatalf("no battery warning after a CPU abort: %q", got)
 	}
 }
+
+// Aborting another trigger's sleep must not quiet the battery trigger.
+func TestThermalOtherAbortKeepsBatterySleep(t *testing.T) {
+	cpu95 := 95.0
+	r := defaultThermal()
+	r.Cfg.CPUSleepC = &cpu95
+	s, _, now := runThermal(t, r, NewThermalFSM(), "96C n x2", t0)
+	s, _, err := r.Abort(s, "extend", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, _, _ = runThermal(t, r, s, "90C 46B n x2", now)
+	if s.State != contracts.FSMSleepPending || s.Pending.Trigger != contracts.SleepTriggerBatteryTemp {
+		t.Fatalf("state = %s %+v, want a battery_temp sleep", s.State, s.Pending)
+	}
+}

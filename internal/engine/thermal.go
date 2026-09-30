@@ -119,10 +119,12 @@ type ThermalFSM struct {
 
 	LastHotNotify  time.Time
 	LastFairNotify time.Time
-	// QuietUntil suppresses the abortable °C triggers (cpu_sleep_c,
-	// battery_sleep_c) for SeriousSleepAfter after an abort.
-	// battery_critical_c is never suppressed.
-	QuietUntil time.Time
+	// CPUQuietUntil suppresses the cpu_sleep_c trigger for
+	// SeriousSleepAfter after any abort. BattQuietUntil does the same for
+	// battery_sleep_c, but only after aborting a battery_temp sleep: the
+	// battery is the part a bag damages, and the daemon's backstop only
+	// covers it from 50°C. battery_critical_c is never suppressed.
+	CPUQuietUntil, BattQuietUntil time.Time
 
 	// Pending is set while State is SLEEP_PENDING.
 	Pending *PendingSleep
@@ -258,8 +260,7 @@ func (r thermalRules) Step(s ThermalFSM, in ThermalInput, now time.Time) (Therma
 
 	// Sleep triggers.
 	upgradable := s.State != contracts.FSMSleepPending || s.Pending.Abortable
-	// An abortable °C trigger may start a sleep: none pending, not quiet.
-	canStart := s.State != contracts.FSMSleepPending && !now.Before(s.QuietUntil)
+	idle := s.State != contracts.FSMSleepPending
 	switch {
 	case s.CritCount >= c.CriticalPolls && (s.State == contracts.FSMHot ||
 		(s.State == contracts.FSMSleepPending && s.Pending.Abortable)):
@@ -271,10 +272,10 @@ func (r thermalRules) Step(s ThermalFSM, in ThermalInput, now time.Time) (Therma
 	case s.State == contracts.FSMHot && s.HotFor >= c.SeriousSleepAfter:
 		acts = append(acts, r.startPending(&s, contracts.SleepTriggerSerious,
 			fmt.Sprintf("hot for %s", humanize.Duration(s.HotFor)), now, in.Status)...)
-	case s.BattHotCount >= batteryPolls && canStart:
+	case s.BattHotCount >= batteryPolls && idle && !now.Before(s.BattQuietUntil):
 		acts = append(acts, r.startPending(&s, contracts.SleepTriggerBatteryTemp,
 			fmt.Sprintf("battery %.0f°C >= %.0f°C", *batt, c.BatterySleepC), now, in.Status)...)
-	case s.CPUHotCount >= cpuSleepPolls && canStart:
+	case s.CPUHotCount >= cpuSleepPolls && idle && !now.Before(s.CPUQuietUntil):
 		acts = append(acts, r.startPending(&s, contracts.SleepTriggerCPUTemp,
 			fmt.Sprintf("CPU %.0f°C >= %.0f°C", *in.Reading.CPUC, *c.CPUSleepC), now, in.Status)...)
 	}
@@ -325,8 +326,9 @@ func (r thermalRules) Expire(s ThermalFSM, now time.Time) (ThermalFSM, []Action)
 // s unchanged; with a critical one it returns contracts.ErrNotAbortable.
 //
 // After an abort the hot timer restarts, so a machine that stays hot sleeps
-// again after another SeriousSleepAfter; the cpu_sleep_c and
-// battery_sleep_c triggers are quiet for the same period.
+// again after another SeriousSleepAfter; the cpu_sleep_c trigger is quiet
+// for the same period, and so is battery_sleep_c when it was the one
+// aborted.
 func (r thermalRules) Abort(s ThermalFSM, by string, now time.Time) (ThermalFSM, []Action, error) {
 	s = s.clone()
 	if s.State != contracts.FSMSleepPending || s.Pending == nil {
@@ -337,9 +339,10 @@ func (r thermalRules) Abort(s ThermalFSM, by string, now time.Time) (ThermalFSM,
 	}
 	p := s.Pending
 	s.Pending = nil
-	s.QuietUntil = now.Add(r.Cfg.SeriousSleepAfter)
+	s.CPUQuietUntil = now.Add(r.Cfg.SeriousSleepAfter)
 	s.CPUHotCount = 0
 	if p.Trigger == contracts.SleepTriggerBatteryTemp {
+		s.BattQuietUntil = s.CPUQuietUntil
 		s.BattWarned = true // the pending-sleep notice already said it
 	}
 	if s.Last >= contracts.ThermalSerious {
